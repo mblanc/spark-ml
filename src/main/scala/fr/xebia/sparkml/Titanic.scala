@@ -14,12 +14,12 @@ import org.apache.spark.{SparkConf, SparkContext}
 
 object Titanic {
 
+
+
   def main(args: Array[String]) {
     FileUtils.deleteDirectory(new File("src/main/resources/titanic/result"))
 
-    val conf = new SparkConf()
-      .setAppName("Titanic")
-      .setMaster("local[*]")
+    val conf = new SparkConf().setAppName("Titanic").setMaster("local[*]")
 
     val sc = new SparkContext(conf)
 
@@ -31,18 +31,13 @@ object Titanic {
     // Use the spark-csv library see https://github.com/databricks/spark-csv
     val csv = sqlContext.read.format("com.databricks.spark.csv").option("header", "true").load("src/main/resources/titanic/train.csv")
 
+
     // spark-csv put the type StringType to each column
     csv.printSchema()
 
     // select only the useful columns, rename them and cast them to the right type
-    val df = csv.select(
-      $"Survived".as("label").cast(DoubleType),
-      $"Age".as("age").cast(IntegerType),
-      $"Fare".as("fare").cast(DoubleType),
-      $"Pclass".as("class").cast(DoubleType),
-      $"Sex".as("sex"),
-      $"Name".as("name")
-    )
+
+    val df = selectCols(csv)
 
     // verify the schema
     df.printSchema()
@@ -54,11 +49,11 @@ object Titanic {
     df.describe(df.columns: _*).show()
 
 
-//    val sexIndexerModel = sexIndexer.fit(df)
-//    val sexIndexed = sexIndexerModel.transform(df)
-
     // We replace the missing values of the age and fare columns by their mean.
-    val select = df.na.fill(Map("age" -> 30, "fare" -> 32.2))
+    import org.apache.spark.sql.functions._
+    val average_age = df.select(avg($"age"))
+    val average_fare = df.select(avg($"fare"))
+    val select = df.na.fill(Map("age" -> average_age, "fare" -> average_fare))
 
     // We will train our model on 75% of our data and use the 25% left for validation.
     val Array(trainSet, validationSet) = select.randomSplit(Array(0.75, 0.25))
